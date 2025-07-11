@@ -1,0 +1,99 @@
+#!/bin/bash
+set -eu
+
+cd $(dirname $0)
+
+BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
+if [[ "$BRANCH_NAME" != backport-v* ]]; then
+  echo "Branch name should be in the format backport-vX.Y.Z"
+  exit 1
+fi
+
+COMMIT_REF=$(git rev-parse --short HEAD)
+
+HARVESTER_VERSION="${BRANCH_NAME#backport-}"
+PROJECT_ROOT="$(pwd)/.."
+REPACKED_ISO_FILENAME="${PROJECT_ROOT}/dist/harvester-${HARVESTER_VERSION}-amd64-${COMMIT_REF}.iso"
+
+TEMP_DIR=$(mktemp -d)
+
+ISO_FILENAME="${TEMP_DIR}/harvester-${HARVESTER_VERSION}-amd64.iso"
+ISO_EXTRACT_DIR="${TEMP_DIR}/iso_extract"
+SQUASHFS_EXTRACT_DIR="${TEMP_DIR}/squashfs_extract"
+NEW_ROOTFS="${TEMP_DIR}/rootfs.new.squashfs"
+
+cleanup() {
+  echo "--- Cleaning up temporary directory ---"
+  rm -rf "${TEMP_DIR}"
+}
+
+trap cleanup EXIT
+
+mkdir -p $PROJECT_ROOT/dist
+
+echo "--- Building harvester-installer binary ---"
+DRONE_TAG=$HARVESTER_VERSION ./build
+DRONE_TAG=$HARVESTER_VERSION ./test
+NEW_BINARY_SIZE=$(du -sh "${PROJECT_ROOT}/bin/harvester-installer" | awk '{print $1}')
+
+echo "--- Downloading Harvester ISO ---"
+wget -nv -O "$ISO_FILENAME" "https://releases.rancher.com/harvester/${HARVESTER_VERSION}/harvester-${HARVESTER_VERSION}-amd64.iso"
+ORIGINAL_ISO_SIZE=$(du -sh "$ISO_FILENAME" | awk '{print $1}')
+
+VOL_ID="$(yq '.iso.label' "${PROJECT_ROOT}/package/harvester-os/manifest.yaml")"
+
+echo "--- Extracting ISO contents ---"
+mkdir -p "${ISO_EXTRACT_DIR}"
+xorriso -osirrox on -indev "${ISO_FILENAME}" -extract / "${ISO_EXTRACT_DIR}"
+rm "${ISO_FILENAME}"
+
+ORIGINAL_ROOTFS_SIZE=$(du -sh "${ISO_EXTRACT_DIR}/rootfs.squashfs" | awk '{print $1}')
+
+echo "--- Extracting rootfs ---"
+unsquashfs -d "${SQUASHFS_EXTRACT_DIR}" "${ISO_EXTRACT_DIR}/rootfs.squashfs"
+ORIGINAL_BINARY_SIZE=$(du -sh "${SQUASHFS_EXTRACT_DIR}/usr/bin/harvester-installer" | awk '{print $1}')
+rm "${ISO_EXTRACT_DIR}/rootfs.squashfs"
+
+echo "--- Repacking rootfs ---"
+cp "${PROJECT_ROOT}/bin/harvester-installer" "${SQUASHFS_EXTRACT_DIR}/usr/bin/"
+mksquashfs "${SQUASHFS_EXTRACT_DIR}" "${NEW_ROOTFS}" -comp xz
+rm -rf "${SQUASHFS_EXTRACT_DIR}"
+NEW_ROOTFS_SIZE=$(du -sh "${NEW_ROOTFS}" | awk '{print $1}')
+
+echo "--- Creating new ISO ---"
+mv "${NEW_ROOTFS}" "${ISO_EXTRACT_DIR}/rootfs.squashfs"
+
+xorriso -volid "$VOL_ID" \
+  -joliet on -padding 0 \
+  -outdev "${REPACKED_ISO_FILENAME}" \
+  -map "${ISO_EXTRACT_DIR}" / -chmod 0755 -- \
+  -boot_image grub bin_path="boot/x86_64/loader/eltorito.img" \
+  -boot_image grub grub2_mbr="${ISO_EXTRACT_DIR}/boot/x86_64/loader/boot_hybrid.img" \
+  -boot_image grub grub2_boot_info=on \
+  -boot_image any partition_offset=16 \
+  -boot_image any cat_path="boot/x86_64/boot.catalog" \
+  -boot_image any cat_hidden=on \
+  -boot_image any boot_info_table=on \
+  -boot_image any platform_id=0x00 \
+  -boot_image any emul_type=no_emulation \
+  -boot_image any load_size=2048 \
+  -append_partition 2 0xef "${ISO_EXTRACT_DIR}/boot/uefi.img" \
+  -boot_image any next \
+  -boot_image any efi_path=--interval:appended_partition_2:all:: \
+  -boot_image any platform_id=0xef \
+  -boot_image any emul_type=no_emulation
+
+NEW_ISO_SIZE=$(du -sh "${REPACKED_ISO_FILENAME}" | awk '{print $1}')
+
+sha256sum "${REPACKED_ISO_FILENAME}"
+
+echo
+echo "--- Size Report ---"
+echo "Original ISO size:      ${ORIGINAL_ISO_SIZE}"
+echo "New ISO size:           ${NEW_ISO_SIZE}"
+echo "Original rootfs size:   ${ORIGINAL_ROOTFS_SIZE}"
+echo "New rootfs size:        ${NEW_ROOTFS_SIZE}"
+echo "Original binary size:   ${ORIGINAL_BINARY_SIZE}"
+echo "New binary size:        ${NEW_BINARY_SIZE}"
+echo
+echo "--- ISO repacked successfully: ${REPACKED_ISO_FILENAME} ---"

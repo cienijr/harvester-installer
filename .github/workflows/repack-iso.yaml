@@ -1,0 +1,30 @@
+name: Repack Harvester ISO on backport branches
+
+on:
+  push:
+    branches:
+    - 'backport-*'
+
+jobs:
+  repack-iso:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Parse fork version
+      run: |
+        branch_name="${{ github.ref_name }}"
+        version="${branch_name#backport-}"
+        echo "HARVESTER_VERSION=$version" >> $GITHUB_ENV
+
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Repack ISO
+      run: |
+        make repack-iso
+
+    - name: Upload ISO
+      uses: actions/upload-artifact@v4
+      with:
+        name: harvester-iso-repacked
+        path: dist/*.iso
