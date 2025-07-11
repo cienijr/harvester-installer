@@ -21,7 +21,7 @@ const (
 	MinMemoryTest      = 32
 	MinMemoryProd      = 64
 	MinNetworkGbpsTest = 1
-	MinNetworkGbpsProd = 10
+	MinNetworkGbpsProd = 1
 )
 
 var (
