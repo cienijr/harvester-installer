@@ -32,7 +32,7 @@ const (
 )
 
 const (
-	SingleDiskMinSizeGiB   uint64 = 250
+	SingleDiskMinSizeGiB   uint64 = 220
 	MultipleDiskMinSizeGiB uint64 = 180
 	HardMinDataDiskSizeGiB uint64 = 50
 	MaxPods                       = 200

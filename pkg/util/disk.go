@@ -6,13 +6,13 @@ import (
 )
 
 const (
-	MinDiskSize       = 250 << 30
+	MinDiskSize       = 220 << 30
 	MinPersistentSize = 150 << 30
 	MiByteMultiplier  = 1 << 20
 	GiByteMultiplier  = 1 << 30
 
-	// 50Mi for COS_OEM, 15Gi for COS_STATE, 8Gi for COS_RECOVERY, 64Mi for ESP partition, 50Gi for VM data
-	fixedOccupiedSize = (50 + 15360 + 8192 + 64 + 51200) * MiByteMultiplier
+	// 50Mi for COS_OEM, 15Gi for COS_STATE, 8Gi for COS_RECOVERY, 64Mi for ESP partition, 40Gi for VM data
+	fixedOccupiedSize = (50 + 15360 + 8192 + 64 + 40960) * MiByteMultiplier
 )
 
 func ParsePartitionSize(diskSizeBytes uint64, partitionSize string) (uint64, error) {

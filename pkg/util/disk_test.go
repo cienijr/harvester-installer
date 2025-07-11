@@ -26,7 +26,7 @@ func TestParsePartitionSize(t *testing.T) {
 		{
 			diskSize:      2000 * GiByteMultiplier,
 			partitionSize: "1999Gi",
-			err:           "Partition size is too large. Maximum 1926Gi is allowed",
+			err:           "Partition size is too large. Maximum 1936Gi is allowed",
 		},
 		{
 			diskSize:      2000 * GiByteMultiplier,
@@ -41,12 +41,12 @@ func TestParsePartitionSize(t *testing.T) {
 		{
 			diskSize:      100 * GiByteMultiplier,
 			partitionSize: "50Gi",
-			err:           "Installation disk size is too small. Minimum 250Gi is required",
+			err:           "Installation disk size is too small. Minimum 220Gi is required",
 		},
 		{
-			diskSize:      249 * GiByteMultiplier,
+			diskSize:      219 * GiByteMultiplier,
 			partitionSize: "50Gi",
-			err:           "Installation disk size is too small. Minimum 250Gi is required",
+			err:           "Installation disk size is too small. Minimum 220Gi is required",
 		},
 		{
 			diskSize:      2000 * GiByteMultiplier,
@@ -71,7 +71,7 @@ func TestParsePartitionSize(t *testing.T) {
 		{
 			diskSize:      400 * GiByteMultiplier,
 			partitionSize: "385933Mi",
-			err:           "Partition size is too large. Maximum 326Gi is allowed",
+			err:           "Partition size is too large. Maximum 336Gi is allowed",
 		},
 	}
 
